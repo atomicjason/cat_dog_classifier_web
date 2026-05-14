@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cat vs Dog Classifier</title>
+  <link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+ 
+  <div class="card">
+    <div class="header">
+      <div class="header-icon">🐾</div>
+      <div>
+        <h1>Cat vs Dog Classifier</h1>
+        <p>Upload a photo to identify the animal</p>
+      </div>
+    </div>
+ 
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <input type="file" id="fileInput" accept="image/*">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+      <p>Drop an image here</p>
+      <span>or click to browse</span>
+    </div>
+ 
+    <div id="resultArea">
+      <img id="preview" class="preview-img" src="" alt="Preview">
+ 
+      <div class="loading" id="loadingState">
+        <div class="spinner"></div>
+        <p>Classifying your image...</p>
+      </div>
+ 
+      <div class="results" id="resultsState">
+        <div class="result-header">
+          <span>Prediction</span>
+          <div class="top-label" id="topLabel">—</div>
+        </div>
+        <div id="bars"></div>
+      </div>
+ 
+      <div class="error-box" id="errorState">
+        <p id="errorMsg">Something went wrong. Please try again.</p>
+      </div>
+ 
+      <button class="btn" onclick="resetUI()">↺ Try another image</button>
+    </div>
+  </div>
+ 
+  <script type="module">
+    import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+ 
+    const COLORS = ["#4a7cf7", "#f7834a"];
+ 
+    const fileInput = document.getElementById("fileInput");
+    const dropZone = document.getElementById("dropZone");
+    const resultArea = document.getElementById("resultArea");
+    const preview = document.getElementById("preview");
+    const loadingState = document.getElementById("loadingState");
+    const resultsState = document.getElementById("resultsState");
+    const errorState = document.getElementById("errorState");
+    const topLabel = document.getElementById("topLabel");
+    const barsDiv = document.getElementById("bars");
+ 
+    fileInput.addEventListener("change", e => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+ 
+    dropZone.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropZone.classList.add("dragging");
+    });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragging"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("dragging");
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+ 
+    async function handleFile(file) {
+      preview.src = URL.createObjectURL(file);
+      dropZone.style.display = "none";
+      resultArea.style.display = "block";
+      loadingState.style.display = "block";
+      resultsState.style.display = "none";
+      errorState.style.display = "none";
+ 
+      try {
+        const client = await Client.connect("jasonthealchemist/myfirst_space");
+        const result = await client.predict("/classify_img", { img: file });
+        const confidences = result.data[0].confidences || [];
+        const best = confidences.reduce((a, b) => a.confidence > b.confidence ? a : b);
+ 
+        topLabel.textContent = best.label;
+        barsDiv.innerHTML = confidences.map((c, i) => `
+          <div class="bar-row">
+            <div class="bar-meta">
+              <span class="label">${c.label}</span>
+              <span class="pct">${(c.confidence * 100).toFixed(1)}%</span>
+            </div>
+            <div class="bar-bg">
+              <div class="bar-fill" style="width:${(c.confidence * 100).toFixed(1)}%; background:${COLORS[i % COLORS.length]};"></div>
+            </div>
+          </div>
+        `).join("");
+ 
+        loadingState.style.display = "none";
+        resultsState.style.display = "block";
+      } catch (err) {
+        loadingState.style.display = "none";
+        errorState.style.display = "block";
+        document.getElementById("errorMsg").textContent = err.message || "Could not reach the classifier.";
+      }
+    }
+ 
+    window.resetUI = function () {
+      dropZone.style.display = "block";
+      resultArea.style.display = "none";
+      fileInput.value = "";
+      preview.src = "";
+    };
+  </script>
+ 
+</body>
+</html>
